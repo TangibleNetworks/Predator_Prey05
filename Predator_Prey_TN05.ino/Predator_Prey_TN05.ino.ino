@@ -2,9 +2,9 @@
 // Tangible Networks
 //
 // There are three types of species. 
-// 1. Primary producer (DIP1=OFF , DIP2=OFF)
-// 2. Herbivore (DIP1=ON)
-// 3. Predator (DIP1=OFF , DIP2=ON)
+// 1. Primary producer 
+// 2. Herbivore 
+// 3. Predator 
 //
 // Their rules for updating their popualtions are as follows:
 //
@@ -19,20 +19,28 @@
 // 3. Predators:
 //    > send all ouptut as -ve s.t. receiving species know they are being eaten
 //    > treat all input as positive i.e. being fed
+//
+// Ports 0-2 are prey ports
+// Ports 3-5 are predator ports
+//
+// NOTE: two possible parameters to tune. 1. The coupling for the top predator (currently 0.4), and 2. the possibly introducing number of prey to interaction dynamics method. 
+//   > what population to reset to?
+//   > how to tune delay using mater dial
 
 #include <math.h>
 #include<TN05.h>                  
+# include <stdlib.h>
 
 // Model parameters
 float dt = 0.05;                    // size of time step for Euler method
 float population = 0;               // initial populations are exactly zero
 float old_population = 0;
 float growth_rates[] = {2, -1, -1};          // these are the values for the species intrinsic growth rates (intrinsically prey grow, predators die).
-float couplings[] = {0.5,0.5,0.5};          // this defines strenght of species interactions (impact one species has on another)
+float couplings[] = {0.5,0.5,0.4};          // this defines strenght of species interactions (impact one species has on another)
 
          
 int numberOfPrey = 0;
-int connections[] = {0, 0, 0};         // to store if inputs are connected, to avoid multiple calls handshake function
+int connections[] = {0, 0, 0, 0, 0, 0};         // to store if inputs are connected, to avoid multiple calls handshake function
 float inputs[] = {0,0,0};              // likewise for inputs
 int type = 0;  // Species type, as described above.
 
@@ -54,7 +62,12 @@ void loop() {
   sendPopulation();
   ledWrite();
 
-  delay(10);                    
+  delay(10 - Tn.masterRead()*10);
+
+  if (Tn.masterSw()){
+    reset_pops();            
+  }
+    
 }
 
 
@@ -62,6 +75,11 @@ void loop() {
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////Predator-Prey functions.
 ////For use in N species simulation. 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void reset_pops(){
+  population = (population_max/(2.0*type)); 
+  
+}
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void handshake(){
 
@@ -71,37 +89,44 @@ void handshake(){
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void checkType(){
+   if (connections[0] + connections[1] + connections[2] == 0){
+     type = 3;
+   }
+   else if (connections[3] + connections[4] + connections[5] == 0){
+     type = 1;  
+   }
+   else{
+     type = 2;
+   }
 
-    if (Tn.dip1()){
-      type = 2;
-    }
-    else if (Tn.dip2()){
-      type = 3;
-    }
-    else{
-      type = 1;
-    }
+//    if (Tn.dip0()){
+//      type = 2;
+//    }
+//    else if (Tn.dip1()){
+//      type = 3;
+//    }
+//    else{
+//      type = 1;
+//    }
    
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void readInputs(){
   
   numberOfPrey=0;
-  for (int i=0; i<6; i++) {
+  for (int i=0; i<3; i++) {
     if (connections[i]){
-      if (type == 3){
-        inputs[i] = abs(Tn.analogRead(i));  // top predators always receive food!
-        numberOfPrey ++;
-      }
-      else{
-        inputs[i] = Tn.analogRead(i);  // everything else just receieves what it is sent.
-        if (inputs[i] > 0.0){
-          numberOfPrey ++;
-        }
-      }
-      
+        inputs[i] = -(Tn.analogRead(i));  // prey ports always have negative effect
     }
   }
+
+  for (int i=3; i<6; i++) {
+    if (connections[i]){
+        inputs[i] = Tn.analogRead(i);  // predator ports always have positive effect
+        numberOfPrey ++;
+    }
+   }
+
   if (numberOfPrey==0){numberOfPrey++;} 
 }
 
@@ -136,7 +161,7 @@ void interactionDynamics(){
 
   for (int i=0; i<6; i++) {
       if (connections[i]){
-        population += dt * inputs[i] * old_population * couplings[type]/(numberOfPrey+1);
+        population += dt * inputs[i] * old_population * couplings[type-1]; /// (numberOfPrey+1);
       }
   }
 }
@@ -144,10 +169,10 @@ void interactionDynamics(){
 void sendPopulation(){
  
     if (type==1){
-      Tn.analogWrite(population);                 // always send positive
+      Tn.analogWrite(population);                 
     }
     else {
-      Tn.analogWrite(-population/numberOfPrey);  // always send negative (updated to improve stability)
+      Tn.analogWrite(population/numberOfPrey);  
     }
   
   
@@ -166,4 +191,32 @@ void ledWrite(){
   }  
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+double randn (double mu, double sigma)
+{
+  double U1, U2, W, mult;
+  static double X1, X2;
+  static int call = 0;
+ 
+  if (call == 1)
+    {
+      call = !call;
+      return (mu + sigma * (double) X2);
+    }
+ 
+  do
+    {
+      U1 = -1 + ((double) rand () / RAND_MAX) * 2;
+      U2 = -1 + ((double) rand () / RAND_MAX) * 2;
+      W = pow (U1, 2) + pow (U2, 2);
+    }
+  while (W >= 1 || W == 0);
+ 
+  mult = sqrt ((-2 * log (W)) / W);
+  X1 = U1 * mult;
+  X2 = U2 * mult;
+ 
+  call = !call;
+ 
+  return (mu + sigma * (double) X1);
+}
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
