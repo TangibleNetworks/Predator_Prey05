@@ -26,6 +26,8 @@
 // NOTE: two possible parameters to tune. 1. The coupling for the top predator (currently 0.4), and 2. the possibly introducing number of prey to interaction dynamics method. 
 //   > what population to reset to?
 //   > how to tune delay using mater dial
+//
+// IS THE NOISE LEVEL SET CORRECTLY?
 
 #include <math.h>
 #include<TN05.h>                  
@@ -35,10 +37,9 @@
 float dt = 0.05;                    // size of time step for Euler method
 float population = 0;               // initial populations are exactly zero
 float old_population = 0;
-float growth_rates[] = {2, -1, -1};          // these are the values for the species intrinsic growth rates (intrinsically prey grow, predators die).
-float couplings[] = {0.5,0.5,0.4};          // this defines strenght of species interactions (impact one species has on another)
+float growth_rates[] = {2, 1, -1};     //-1     // these are the values for the species intrinsic growth rates (intrinsically prey grow, predators die).
+float couplings[] = {0.5,1.5,0.4};     //0.5     // this defines strenght of species interactions (impact one species has on another)
 
-         
 int numberOfPrey = 0;
 int connections[] = {0, 0, 0, 0, 0, 0};         // to store if inputs are connected, to avoid multiple calls handshake function
 float inputs[] = {0,0,0};              // likewise for inputs
@@ -46,7 +47,13 @@ int type = 0;  // Species type, as described above.
 
 const float population_max = 20;
 
-TN Tn = TN(-population_max,population_max);   
+float prev_master = 0;
+float noise = 0;
+float noise_multiplier = 0;
+boolean switch_held = 0;
+
+//TN Tn = TN(-population_max,population_max);   
+TN Tn = TN(0,population_max);   
 
 void setup () {}                
 
@@ -65,8 +72,18 @@ void loop() {
   delay(10 - Tn.masterRead()*10);
 
   if (Tn.masterSw()){
-    reset_pops();            
+    reset_pops();
+    switch_held = 1;            
   }
+  while (switch_held){
+    prev_master = Tn.masterRead();
+    if (Tn.masterRead()!=prev_master){
+       noise_multiplier = Tn.masterRead();
+    }
+    switch_held = Tn.masterSw();
+  }
+
+  noise = randn(0, 100*population*dt*noise_multiplier);
     
 }
 
@@ -153,7 +170,7 @@ void updatePopulation(){
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void intrinsicDynamics() {
  
-  population += growth_rates[type-1]*old_population*dt*(1+10*Tn.pot());
+  population += dt* (growth_rates[type-1]*old_population*(1+10*Tn.pot()) + noise);
  
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
