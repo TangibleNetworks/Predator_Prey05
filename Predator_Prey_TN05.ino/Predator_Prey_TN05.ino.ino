@@ -37,8 +37,8 @@
 float dt = 0.05;                    // size of time step for Euler method
 float population = 0;               // initial populations are exactly zero
 float old_population = 0;
-float growth_rates[] = {2, 1, -1};     //-1     // these are the values for the species intrinsic growth rates (intrinsically prey grow, predators die).
-float couplings[] = {0.5,1.5,0.4};     //0.5     // this defines strenght of species interactions (impact one species has on another)
+float growth_rates[] = {2, -1, -1};     //-1     // these are the values for the species intrinsic growth rates (intrinsically prey grow, predators die).
+float couplings[] = {0.5,0.5,0.4};     //0.5     // this defines strenght of species interactions (impact one species has on another)
 
 int numberOfPrey = 0;
 int connections[] = {0, 0, 0, 0, 0, 0};         // to store if inputs are connected, to avoid multiple calls handshake function
